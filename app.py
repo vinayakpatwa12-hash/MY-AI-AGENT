@@ -5,7 +5,7 @@ from openai import OpenAI
 # CONFIG (PUT YOUR KEY HERE)
 # ==========================
 
-API_KEY = "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"
+API_KEY = "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"
 
 client = OpenAI(api_key=API_KEY)
 
