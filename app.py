@@ -1,71 +1,60 @@
-#%%
+import os
+import streamlit as st
 from openai import OpenAI
-
-# ==========================
-# CONFIG (PUT YOUR KEY HERE)
-# ==========================
-
-API_KEY = "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"
-
-client = OpenAI(api_key=API_KEY)
-
-# ==========================
-# SYSTEM BEHAVIOR
-# ==========================
 
 SYSTEM_TEXT = """
 You are a helpful, knowledgeable AI assistant.
-You can answer any type of question: science, math, coding, history, advice, or explanation.
-Always reply clearly and logically.
-Give high-quality, accurate information.
+You can answer any type of question clearly and logically.
 """
 
-# ==========================
-# AI FUNCTION
-# ==========================
+def get_client():
+    """Return (client, error_message)."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None, "OPENAI_API_KEY is not set. Add it in Streamlit -> Secrets."
+    try:
+        client = OpenAI(api_key=api_key)
+        return client, None
+    except Exception as e:
+        return None, f"Error creating OpenAI client: {e}"
 
-def ask_ai(question: str):
-    response = client.chat.completions.create(
+def ask_ai(client, question: str) -> str:
+    res = client.chat.completions.create(
         model="gpt-4.1-mini",
         temperature=0.3,
         messages=[
             {"role": "system", "content": SYSTEM_TEXT},
-            {"role": "user", "content": question}
+            {"role": "user",  "content": question},
         ],
     )
-
-    return response.choices[0].message.content.strip()
-
-
-# ==========================
-# CLI LOOP
-# ==========================
+    return res.choices[0].message.content.strip()
 
 def main():
-    print("========================================")
-    print("       GENERAL AI AGENT")
-    print("   Type 'exit' to quit.")
-    print("========================================\n")
+    st.set_page_config(page_title="AI Assistant", page_icon="🤖")
+    st.title("AI Assistant 🤖")
+    st.write("Ask anything below.")
 
-    while True:
-        q = input("Ask anything: ").strip()
+    # show something even if key is missing
+    client, err = get_client()
+    if err:
+        st.error(err)
+        st.info('In Streamlit Cloud, go to "Manage app" → "Secrets" and set:\n'
+                'OPENAI_API_KEY = "your_real_key_here"')
+        return
 
-        if q.lower() == "exit":
-            print("Goodbye.")
-            break
+    question = st.text_area("Your question:", height=120)
 
-        if not q:
-            print("Type something.")
-            continue
-
-        try:
-            ans = ask_ai(q)
-            print("\n--- ANSWER ---")
-            print(ans)
-            print("--------------\n")
-        except Exception as e:
-            print(f"Error: {e}")
-
+    if st.button("Ask AI"):
+        if not question.strip():
+            st.warning("Please type a question first.")
+        else:
+            with st.spinner("Thinking..."):
+                try:
+                    answer = ask_ai(client, question)
+                    st.markdown("### Answer:")
+                    st.markdown(answer)
+                except Exception as e:
+                    st.error(f"Error from AI: {e}")
 
 if __name__ == "__main__":
     main()
