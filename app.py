@@ -1,41 +1,71 @@
-import os
-import streamlit as st
+#%%
 from openai import OpenAI
 
-API_KEY = os.getenv("OPENAI_API_KEY")
+# ==========================
+# CONFIG (PUT YOUR KEY HERE)
+# ==========================
 
-if not API_KEY:
-    st.error("API key not set. Please set OPENAI_API_KEY in Streamlit secrets.")
-    st.stop()
+API_KEY = "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"
 
 client = OpenAI(api_key=API_KEY)
 
+# ==========================
+# SYSTEM BEHAVIOR
+# ==========================
+
 SYSTEM_TEXT = """
 You are a helpful, knowledgeable AI assistant.
-You can answer any type of question clearly and logically.
+You can answer any type of question: science, math, coding, history, advice, or explanation.
+Always reply clearly and logically.
+Give high-quality, accurate information.
 """
 
-def ask_ai(q):
-    res = client.chat.completions.create(
+# ==========================
+# AI FUNCTION
+# ==========================
+
+def ask_ai(question: str):
+    response = client.chat.completions.create(
         model="gpt-4.1-mini",
+        temperature=0.3,
         messages=[
             {"role": "system", "content": SYSTEM_TEXT},
-            {"role": "user", "content": q}
+            {"role": "user", "content": question}
         ],
-        temperature=0.3
     )
-    return res.choices[0].message.content.strip()
+
+    return response.choices[0].message.content.strip()
+
+
+# ==========================
+# CLI LOOP
+# ==========================
 
 def main():
-    st.title("AI Assistant 🤖")
+    print("========================================")
+    print("       GENERAL AI AGENT")
+    print("   Type 'exit' to quit.")
+    print("========================================\n")
 
-    q = st.text_area("Ask anything:")
+    while True:
+        q = input("Ask anything: ").strip()
 
-    if st.button("Ask"):
-        if q.strip():
-            st.write(ask_ai(q))
-        else:
-            st.warning("Type something first!")
+        if q.lower() == "exit":
+            print("Goodbye.")
+            break
+
+        if not q:
+            print("Type something.")
+            continue
+
+        try:
+            ans = ask_ai(q)
+            print("\n--- ANSWER ---")
+            print(ans)
+            print("--------------\n")
+        except Exception as e:
+            print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     main()
