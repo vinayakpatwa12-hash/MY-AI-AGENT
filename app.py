@@ -15,10 +15,6 @@ if not OPENAI_KEY:
     st.error("OPENAI_API_KEY missing. Set it in Streamlit → Secrets.")
     st.stop()
 
-if not FAL_KEY:
-    st.warning("FAL_KEY missing → Video generation won't work.")
-
-# Setup clients
 client = OpenAI(api_key=OPENAI_KEY)
 
 if FAL_KEY:
@@ -26,10 +22,10 @@ if FAL_KEY:
 
 
 # ==========================
-# 1. AI CHAT FUNCTION
+# AI CHAT
 # ==========================
 
-SYS_TEXT = """You are a helpful assistant. Answer clearly and logically."""
+SYS_TEXT = "You are a helpful, smart assistant. Answer clearly and logically."
 
 def ask_ai(prompt: str) -> str:
     try:
@@ -42,50 +38,74 @@ def ask_ai(prompt: str) -> str:
             ],
         )
         return resp.choices[0].message.content.strip()
+
     except Exception as e:
         return f"Error: {e}"
 
 
 # ==========================
-# 2. FAL.AI VIDEO GENERATION
+# FAL.AI VIDEO GENERATION
 # ==========================
 
 def generate_video(prompt: str):
+    """
+    Returns:
+        str video_url  OR None
+        str error_message OR None
+    """
+    if not FAL_KEY:
+        return None, "FAL_KEY missing."
+
     try:
+        # Submit job
         response = fal_client.submit(
             model="fal-ai/pika/v2/turbo/text-to-video",
             arguments={
                 "prompt": prompt,
-                "duration": 4,   # seconds
+                "duration": 4,
             }
         )
 
+        # Wait for job to finish
         result = response.get()
 
-        return result.get("video", {}).get("url")
+        if not result:
+            return None, "Empty response from API."
+
+        # Debug: check structure
+        video_data = result.get("video")
+
+        if not video_data:
+            return None, "API returned no video field."
+
+        video_url = video_data.get("url")
+
+        if not video_url:
+            return None, "API returned no video URL."
+
+        # VALID URL
+        return video_url, None
 
     except Exception as e:
         return None, str(e)
 
 
 # ==========================
-# 3. STREAMLIT UI
+# STREAMLIT UI
 # ==========================
 
 def main():
 
-    st.set_page_config(page_title="AI + Pika Video", page_icon="🤖")
-
+    st.set_page_config(page_title="AI + Video", page_icon="🤖")
     st.title("AI Assistant + Pika Video Generator 🤖🎬")
 
 
-    # ---------------- CHAT SECTION ----------------
-
+    # ------- CHAT SECTION -------
     st.header("💬 Ask Anything")
 
-    user_q = st.text_area("Your question:", key="ai_input")
+    user_q = st.text_area("Your question:", key="ai_input", height=120)
 
-    if st.button("Ask AI", key="ai_button"):
+    if st.button("Ask AI", key="btn_ai"):
         if not user_q.strip():
             st.warning("Type something first.")
         else:
@@ -98,44 +118,46 @@ def main():
     st.markdown("---")
 
 
-    # ---------------- VIDEO SECTION ----------------
-
+    # ------- VIDEO SECTION -------
     st.header("🎬 Generate Video using Pika (Fal.ai)")
 
     if not FAL_KEY:
-        st.info("Add FAL_KEY to Streamlit secrets to enable video feature.")
-    else:
+        st.info("Add FAL_KEY in Secrets to enable video generator.")
+        return
 
-        video_prompt = st.text_area(
-            "Enter a prompt for video:",
-            key="video_input",
-            height=150
-        )
+    video_prompt = st.text_area(
+        "Enter a prompt for video:", key="video_input", height=150
+    )
 
-        if st.button("Generate Video", key="video_button"):
+    if st.button("Generate Video", key="btn_video"):
 
-            if not video_prompt.strip():
-                st.warning("Enter a video prompt.")
-            else:
-                with st.spinner("Generating video... this may take ~60s"):
+        if not video_prompt.strip():
+            st.warning("Enter a video prompt.")
+            return
 
-                    video_url = None
-                    error = None
+        with st.spinner("Generating video... (30-120 sec)"):
 
-                    try:
-                        video_url = generate_video(video_prompt)
-                    except Exception as e:
-                        error = str(e)
+            video_url, error = generate_video(video_prompt)
 
-                    if video_url:
-                        st.success("Video generated!")
-                        st.video(video_url)
-                        st.markdown(f"[Download Video]({video_url})")
+            # ----- SUCCESS -----
+            if video_url and not error:
+                st.success("Video generated successfully!")
 
-                    else:
-                        st.error("Failed to generate video.")
-                        if error:
-                            st.write(error)
+                # Safe embed
+                try:
+                    st.video(video_url)
+                    st.markdown(f"[Download Video]({video_url})")
+                except:
+                    st.warning("Video generated, but cannot embed. Open in browser:")
+                    st.markdown(f"[Open Video]({video_url})")
+
+                return
+
+            # ----- FAILURE -----
+            st.error("Video generation failed.")
+            if error:
+                st.write("Error details:")
+                st.write(error)
 
 
 if __name__ == "__main__":
