@@ -1,67 +1,8 @@
 import os
 import streamlit as st
 from openai import OpenAI
-
-SYSTEM_TEXT = """
-You are a helpful, knowledgeable AI assistant.
-You can answer any type of question clearly and logically.
-"""
-
-def get_client():
-    """Return (client, error_message)."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return None, "OPENAI_API_KEY is not set. Add it in Streamlit -> Secrets."
-    try:
-        client = OpenAI(api_key=api_key)
-        return client, None
-    except Exception as e:
-        return None, f"Error creating OpenAI client: {e}"
-
-def ask_ai(client, question: str) -> str:
-    res = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        temperature=0.3,
-        messages=[
-            {"role": "system", "content": SYSTEM_TEXT},
-            {"role": "user",  "content": question},
-        ],
-    )
-    return res.choices[0].message.content.strip()
-
-def main():
-    st.set_page_config(page_title="AI Assistant", page_icon="🤖")
-    st.title("AI Assistant 🤖")
-    st.write("Ask anything below.")
-
-    # show something even if key is missing
-    client, err = get_client()
-    if err:
-        st.error(err)
-        st.info('In Streamlit Cloud, go to "Manage app" → "Secrets" and set:\n'
-                'OPENAI_API_KEY = "your_real_key_here"')
-        return
-
-    question = st.text_area("Your question:", height=120)
-
-    if st.button("Ask AI"):
-        if not question.strip():
-            st.warning("Please type a question first.")
-        else:
-            with st.spinner("Thinking..."):
-                try:
-                    answer = ask_ai(client, question)
-                    st.markdown("### Answer:")
-                    st.markdown(answer)
-                except Exception as e:
-                    st.error(f"Error from AI: {e}")
-
-if __name__ == "__main__":
-    main()
-    import os
-import streamlit as st
-from openai import OpenAI
 import requests
+
 
 # ==========================
 # ENV KEYS
@@ -78,36 +19,33 @@ client = OpenAI(api_key=OPENAI_KEY)
 
 
 # ==========================
-# 1. NORMAL AI ASSISTANT
+# 1. AI ASSISTANT FUNCTION
 # ==========================
 
 SYSTEM_TEXT = """
-You are a helpful, knowledgeable AI assistant.
-You answer clearly and logically.
+You are a helpful assistant.
+You answer clearly, logically, step-by-step if needed.
 """
 
 def ask_ai(prompt: str) -> str:
     resp = client.chat.completions.create(
         model="gpt-4.1-mini",
-        temperature=0.3,
+        temperature=0.2,
         messages=[
-            {"role":"system", "content": SYSTEM_TEXT},
-            {"role":"user",   "content": prompt}
-        ]
+            {"role": "system", "content": SYSTEM_TEXT},
+            {"role": "user", "content": prompt}
+        ],
     )
     return resp.choices[0].message.content.strip()
 
 
 # ==========================
-# 2. JSON2VIDEO GENERATOR
+# 2. JSON2VIDEO FUNCTION
 # ==========================
 
-def generate_video(prompt: str) -> bytes:
+def generate_video(prompt: str) -> str:
     if not JSON2VIDEO_KEY:
-        raise RuntimeError(
-            "JSON2VIDEO_API_KEY missing. "
-            "Add it in Streamlit → Secrets."
-        )
+        raise RuntimeError("JSON2VIDEO_API_KEY missing. Add in Streamlit Secrets.")
 
     url = "https://api.json2video.com/v1/video"
 
@@ -127,34 +65,36 @@ def generate_video(prompt: str) -> bytes:
     resp = requests.post(url, json=payload, headers=headers)
 
     if resp.status_code != 200:
-        raise RuntimeError(
-            f"API Error: {resp.status_code}\n{resp.text}"
-        )
+        raise RuntimeError(f"Video API Error: {resp.status_code}\n{resp.text}")
 
-    return resp.content  # raw video bytes
+    # Save to file
+    filename = "generated_video.mp4"
+    with open(filename, "wb") as f:
+        f.write(resp.content)
+
+    return filename
 
 
 # ==========================
-# STREAMLIT UI
+# 3. APP UI
 # ==========================
 
 def main():
     st.set_page_config(page_title="AI + Video App", page_icon="🤖")
+    st.title("AI Assistant + Text-to-Video Generator 🤖🎬")
 
-    st.title("AI Assistant + Video Generator 🤖🎬")
+    # ---------------- AI Assistant ----------------
+    st.header("💬 Ask Anything")
 
-    # ----------- AI Assistant ------------
-    st.header("🔹 Ask Anything")
+    user_q = st.text_area("Your question:", height=120, key="ai_box")
 
-    q = st.text_area("Your question:", height=120)
-    
-    if st.button("Ask AI"):
-        if not q.strip():
-            st.warning("Type something first.")
+    if st.button("Ask AI", key="ai_button"):
+        if not user_q.strip():
+            st.warning("Type something.")
         else:
             with st.spinner("Thinking..."):
                 try:
-                    ans = ask_ai(q)
+                    ans = ask_ai(user_q)
                     st.markdown("### Answer")
                     st.write(ans)
                 except Exception as e:
@@ -162,30 +102,27 @@ def main():
 
     st.markdown("---")
 
-    # ----------- JSON2Video ------------
-    st.header("🔹 Text → Video Generator (JSON2Video)")
+    # ---------------- Video Generator ----------------
+    st.header("🎬 Text → Video Generator (JSON2Video)")
 
-    v_prompt = st.text_area("Enter video prompt / script:")
+    video_prompt = st.text_area(
+        "Enter video prompt / script:",
+        height=150,
+        key="video_box"
+    )
 
-    if st.button("Generate Video"):
-        if not v_prompt.strip():
-            st.warning("Type a video prompt first.")
+    if st.button("Generate Video", key="video_button"):
+        if not video_prompt.strip():
+            st.warning("Please enter a prompt.")
         else:
-            with st.spinner("Generating video... (takes time)"):
+            with st.spinner("Generating video (may take 30-120 sec)..."):
                 try:
-                    data = generate_video(v_prompt)
-                    fname = "video.mp4"
-
-                    with open(fname, "wb") as f:
-                        f.write(data)
-
+                    video_file = generate_video(video_prompt)
                     st.success("Video generated successfully!")
-                    st.video(fname)
-
+                    st.video(video_file)
                 except Exception as e:
                     st.error(f"Video generation failed: {e}")
 
 
 if __name__ == "__main__":
     main()
-
