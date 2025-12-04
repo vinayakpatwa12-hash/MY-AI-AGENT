@@ -48,31 +48,25 @@ def ask_ai(prompt: str) -> str:
 # ==========================
 
 def generate_video(prompt: str):
-    """
-    Returns:
-        str video_url  OR None
-        str error_message OR None
-    """
     if not FAL_KEY:
         return None, "FAL_KEY missing."
 
     try:
-        # Submit job
+        # Submit job (CORRECT API CALL)
         response = fal_client.submit(
-            model="fal-ai/pika/v2/turbo/text-to-video",
-            arguments={
+            "fal-ai/pika/v2/turbo/text-to-video",
+            {
                 "prompt": prompt,
                 "duration": 4,
             }
         )
 
-        # Wait for job to finish
+        # Wait for job completion
         result = response.get()
 
         if not result:
             return None, "Empty response from API."
 
-        # Debug: check structure
         video_data = result.get("video")
 
         if not video_data:
@@ -83,7 +77,6 @@ def generate_video(prompt: str):
         if not video_url:
             return None, "API returned no video URL."
 
-        # VALID URL
         return video_url, None
 
     except Exception as e:
@@ -139,25 +132,21 @@ def main():
 
             video_url, error = generate_video(video_prompt)
 
-            # ----- SUCCESS -----
             if video_url and not error:
-                st.success("Video generated successfully!")
+                st.success("Video generated!")
 
-                # Safe embed
                 try:
                     st.video(video_url)
-                    st.markdown(f"[Download Video]({video_url})")
                 except:
-                    st.warning("Video generated, but cannot embed. Open in browser:")
-                    st.markdown(f"[Open Video]({video_url})")
+                    st.warning("Video generated, but cannot embed. Open manually:")
 
-                return
+                st.markdown(f"[Open / Download Video]({video_url})")
 
-            # ----- FAILURE -----
-            st.error("Video generation failed.")
-            if error:
-                st.write("Error details:")
-                st.write(error)
+            else:
+                st.error("Video generation failed.")
+                if error:
+                    st.write("Error details:")
+                    st.write(error)
 
 
 if __name__ == "__main__":
